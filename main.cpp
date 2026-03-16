@@ -45,7 +45,8 @@ const int burn_in_time = 200;
 
 
 std::vector<double> betas = {0.5, 1, 1.5, 2.0, 2.5, 3.0};
-const int number_of_threads = static_cast<int>(betas.size()); // now I am running 1 thread per beta
+//const int number_of_threads = static_cast<int>(betas.size()); // now I am running 1 thread per beta
+const int number_of_threads = 6;
 
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
 
