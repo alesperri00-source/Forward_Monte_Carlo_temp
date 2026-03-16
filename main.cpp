@@ -95,7 +95,7 @@ int main() {
 
     mc_moves=mc_moves_start;
     // Load interaction energies once
-    std::ifstream couplings("/home/capucine/Documents/test/Data/Intermediate_Energies/energies_intermediate_119.txt");
+    std::ifstream couplings("/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo/energies_ccrescentus_wt_rep1.txt");
     for (int i = 0; i < pol_length; i++) {
         for (int j = 0; j < pol_length; j++) {
             couplings >> Interaction_E[i][j];
@@ -168,7 +168,7 @@ int main() {
         for (int thread_num = 0; thread_num < batch_size; thread_num++) {
                  write_threads.emplace_back([&, thread_num]() { // create a new thread and store it in the vector write_threads
                         if (polymer[thread_num][0][2] < 1000) {
-                        std::ofstream out("/home/capucine/Documents/test/Data/Final_Configurations/final_configuration_" +
+                        std::ofstream out("/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo/final_confs/final_configuration_" +
                                         std::to_string(thread_num + sample_counter) + ".txt");
 
                                 for (int i = 0; i < pol_length; i++) {
