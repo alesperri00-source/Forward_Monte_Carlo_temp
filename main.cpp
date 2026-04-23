@@ -1,5 +1,4 @@
-// Created by Joris on 09/07/2018.
-//Modified by Capucine on 31/03/2025
+// Created by Alessandro on 16/03/2026 based on code by Joris
 //
 
 // This code performs an iterative Monte Carlo procedure to obtain a Maximum Entropy
@@ -8,7 +7,7 @@
 // Created by Joris on 09/07/2018.
 // Modified by Capucine on 31/03/2025
 // Modified by Alessandro on 16/03/2026 (add T)
-//
+// Modified by Alessandro on 23/04/2026 --> changed indexing of files
 
 // This code performs an iterative Monte Carlo procedure to obtain a Maximum Entropy
 // model for the chromosome organization of C. crescentus
@@ -38,16 +37,31 @@ const int cap_length = 2;
 const int pol_length = 1620;
 
 // const long int mc_moves_start = 25000000;
-const long int mc_moves_start = 2500;
+const long int mc_moves_start = 25000000;
 long int mc_moves;
 //const int burn_in_time = 2000000;
-const int burn_in_time = 200;
+const int burn_in_time = 2000000;
+const int save_interval = 500000;
 
 
-std::vector<double> betas = {0.5, 1, 1.5, 2.0, 2.5, 3.0};
-//const int number_of_threads = static_cast<int>(betas.size()); // now I am running 1 thread per beta
-const int number_of_threads = 6;
 
+// create a vector of temperature
+
+std::vector<float> linspace(float start, float end, size_t points)
+{
+  std::vector<float> res(points);
+  float step = (end - start) / (points - 1);
+  size_t i = 0;
+  for (auto& e : res)
+  {
+    e = start + step * i++;
+  }
+  return res;
+}
+
+std::vector<double> betas = linspace(0.5, 3., 0.1);
+// now I am running 1 thread per beta SO number of threads = number of betas
+const int number_of_threads = static_cast<int>(betas.size());
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
 
 bool boundary_cond = 1; //enforces boundary conditions if 1
@@ -84,9 +98,26 @@ void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the poly
     }
 }
 
+const std::string base_path = "/home/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
+
+
 void run(int thread_num, int mc_moves, double beta) {
+    // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
+
+        if (m % save_interval == 0) {
+            std::string filename = base_path + "intermediate_confs/"
+                                 + "conf_batch" + std::to_string(batch)
+                                 + "_thread" + std::to_string(thread_num)
+                                 + "_step" + std::to_string(m) + ".txt";
+            std::ofstream out(filename);
+            for (int i = 0; i < pol_length; i++) {
+                for (int j = 0; j < 3; j++) {
+                    out << polymer[thread_num][i][j] << '\n';
+                }
+            }
+        }
     }
 }
 
@@ -164,13 +195,14 @@ int main() {
         auto write_start = std::chrono::high_resolution_clock::now();
 
         std::vector<std::thread> write_threads;
-        std::mutex counter_mutex;
+        // std::mutex counter_mutex;
 
         for (int thread_num = 0; thread_num < batch_size; thread_num++) {
                  write_threads.emplace_back([&, thread_num]() { // create a new thread and store it in the vector write_threads
                         if (polymer[thread_num][0][2] < 1000) {
-                        std::ofstream out("/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo/final_confs/final_configuration_" +
-                                        std::to_string(thread_num + sample_counter) + ".txt");
+                        std::string filename = "configuration_batch" + std::to_string(batch) + "_thread" + std::to_string(thread_num) + ".txt";    
+                        std::ofstream out(base_path + "final_confs/final_configuration_" +
+                                        filename);
 
                                 for (int i = 0; i < pol_length; i++) {
                                         for (int j = 0; j < 3; j++) {
@@ -179,9 +211,25 @@ int main() {
                                  }
 
                                  // Safely increment counter
-                                 std::lock_guard<std::mutex> lock(counter_mutex);
-                                 sample_counter++;
+                                 // std::lock_guard<std::mutex> lock(counter_mutex);
+                                 // sample_counter++;
                          }
+                        else {
+                            std::string filename1 = "configuration_batch" + std::to_string(batch) + "_thread" + std::to_string(thread_num) + ".txt";    
+                            std::ofstream out(base_path + "rejected_confs/final_configuration_" +
+                                            filename1);
+
+                                for (int i = 0; i < pol_length; i++) {
+                                        for (int j = 0; j < 3; j++) {
+                                                out << polymer[thread_num][i][j] << '\n';
+                                         }
+                                 }
+
+                                 // Safely increment counter
+                                 // std::lock_guard<std::mutex> lock(counter_mutex);
+                                 // sample_counter++;
+                        }
+
                 });
          }
 
