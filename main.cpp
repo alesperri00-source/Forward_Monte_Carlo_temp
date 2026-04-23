@@ -47,7 +47,7 @@ const int save_interval = 500000;
 
 // create a vector of temperature
 
-std::vector<float> linspace(float start, float end, size_t points)
+std::vector<double> linspace(float start, float end, size_t points)
 {
   std::vector<float> res(points);
   float step = (end - start) / (points - 1);
@@ -101,7 +101,7 @@ void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the poly
 const std::string base_path = "/home/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
 
 
-void run(int thread_num, int mc_moves, double beta) {
+void run(int thread_num, int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
@@ -182,7 +182,7 @@ int main() {
 
         // Forward simulation
         for (int l = 0; l < batch_size; l++) {
-            threads[l] = std::thread(run, l, mc_moves, betas[l]);
+            threads[l] = std::thread(run, l, mc_moves, betas[l], batch);
         }
 
         auto finish3 = std::chrono::high_resolution_clock::now();
