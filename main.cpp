@@ -58,8 +58,8 @@ std::vector<double> linspace(float start, float end, size_t points)
   }
   return res;
 }
-
-std::vector<double> betas = linspace(0.5, 3., 0.1);
+const int num_points = 26;
+std::vector<double> betas = linspace(0.5, 3., num_points);
 // now I am running 1 thread per beta SO number of threads = number of betas
 const int number_of_threads = static_cast<int>(betas.size());
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
