@@ -62,7 +62,6 @@ const int num_points = 26;
 std::vector<double> betas = linspace(0.5, 3., num_points);
 // now I am running 1 thread per beta SO number of threads = number of betas
 const int number_of_threads = static_cast<int>(betas.size());
-std::cout << "Running with " << number_of_threads << " threads." << std::endl;
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
 
 bool boundary_cond = 1; //enforces boundary conditions if 1
@@ -124,6 +123,7 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
 
 int main() {
     auto start = std::chrono::high_resolution_clock::now();
+    std::cout << "Running with " << number_of_threads << " threads." << std::endl;
     std::cout << "Started!" << std::endl;
 
     mc_moves=mc_moves_start;
