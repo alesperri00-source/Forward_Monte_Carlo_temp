@@ -155,6 +155,10 @@ int main() {
 
         // Initialize polymers
         for (int l = 0; l < batch_size; l++) {
+            // okay here I'm putting something Claude gave me., need to think
+            polymer[l].clear();    
+            contacts[l].clear();   // if I want to accumulate across batches don't clear
+            locations[l].clear();                  
             initialize(polymer[l], pol_length, l);
         }
         std::cout << "Initialized monomer positions (thread 0):\n";
