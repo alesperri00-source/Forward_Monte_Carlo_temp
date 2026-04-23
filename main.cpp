@@ -123,10 +123,9 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
 
 int main() {
     auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "Running with " << number_of_threads << " threads." << std::endl;
     std::cout << "Started!" << std::endl;
 
-    mc_moves=mc_moves_start;
+    mc_moves = mc_moves_start;
     // Load interaction energies once
     std::ifstream couplings("/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo/energies_ccrescentus_wt_rep1.txt");
     for (int i = 0; i < pol_length; i++) {
@@ -148,6 +147,7 @@ int main() {
     const int total_batches = 100;
     int sample_counter = 0;
     std::mutex counter_mutex;
+    std::cout << "Running with " << number_of_threads << " threads." << std::endl;
 
 
     for (int batch = 0; batch < total_batches; batch++) {
