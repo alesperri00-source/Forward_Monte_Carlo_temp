@@ -49,7 +49,7 @@ const int save_interval = 500000;
 
 std::vector<double> linspace(float start, float end, size_t points)
 {
-  std::vector<float> res(points);
+  std::vector<double> res(points);
   float step = (end - start) / (points - 1);
   size_t i = 0;
   for (auto& e : res)
