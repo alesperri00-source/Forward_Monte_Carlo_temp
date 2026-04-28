@@ -37,11 +37,11 @@ const int cap_length = 2;
 const int pol_length = 1620;
 
 // const long int mc_moves_start = 25000000;
-const long int mc_moves_start = 25000000;
+const long int mc_moves_start = 2500;
 long int mc_moves;
 //const int burn_in_time = 2000000;
-const int burn_in_time = 2000000;
-const int save_interval = 500000;
+const int burn_in_time = 200;
+const int save_interval = 50;
 
 
 
@@ -105,7 +105,7 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
-
+        std::cout << "Batch " << batch + 1 << " / " << 100 << ", Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\r" << std::flush;
         if (m % save_interval == 0) {
             std::string filename = base_path + "intermediate_confs/"
                                  + "conf_batch" + std::to_string(batch)
@@ -156,9 +156,9 @@ int main() {
         // Initialize polymers
         for (int l = 0; l < batch_size; l++) {
             // okay here I'm putting something Claude gave me., need to think
-            polymer[l].clear();    
-            contacts[l].clear();   // if I want to accumulate across batches don't clear
-            locations[l].clear();                  
+            //polymer[l].clear();    
+            //contacts[l].clear();   // if I want to accumulate across batches don't clear
+            //locations[l].clear();                  
             initialize(polymer[l], pol_length, l);
         }
         std::cout << "Initialized monomer positions (thread 0):\n";
