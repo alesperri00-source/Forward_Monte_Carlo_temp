@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <thread>
 #include <mutex>
+#include <cstdlib>
 #include "Initialize.h"
 #include "Moves.h"
 using namespace Eigen;
@@ -98,14 +99,14 @@ void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the poly
     }
 }
 
-const std::string base_path = "/home/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
+const std::string base_path = "/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
 
 
 void run(int thread_num, int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
-        
+
         if (m % save_interval == 0) {
         std::cout << "Batch " << batch + 1 << " / " << 100 << ", Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
         std::string filename = base_path + "intermediate_confs/"
@@ -113,6 +114,10 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
                                  + "_thread" + std::to_string(thread_num)
                                  + "_step" + std::to_string(m) + ".txt";
             std::ofstream out(filename);
+            if (!out.is_open()) {
+            std::cerr << "ERROR: could not open file: " << filename << "\n";
+            return;
+            }
             for (int i = 0; i < pol_length; i++) {
                 for (int j = 0; j < 3; j++) {
                     out << polymer[thread_num][i][j] << '\n';
@@ -123,6 +128,10 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
 }
 
 int main() {
+    system(("mkdir -p " + base_path + "final_confs").c_str());
+    system(("mkdir -p " + base_path + "rejected_confs").c_str());
+    system(("mkdir -p " + base_path + "intermediate_confs").c_str());
+
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "Started!" << std::endl;
 
@@ -145,7 +154,7 @@ int main() {
     }
     const int batch_size = number_of_threads;
     //const int total_batches = 1000;
-    const int total_batches = 100;
+    const int total_batches = 10;
     int sample_counter = 0;
     std::mutex counter_mutex;
     std::cout << "Running with " << number_of_threads << " threads." << std::endl;
@@ -207,10 +216,9 @@ int main() {
                  write_threads.emplace_back([&, thread_num]() { // create a new thread and store it in the vector write_threads
                         if (polymer[thread_num][0][2] < 1000) {
                         std::string filename = "configuration_batch" + std::to_string(batch) + "_thread" + std::to_string(thread_num) + ".txt";    
-                        std::ofstream out(base_path + "final_confs/final_configuration_" +
-                                        filename);
+                        std::ofstream out(base_path + "final_confs/final_configuration_" + filename);
                         if (!out.is_open()) {
-                        std::cerr << "ERROR: could not open file: " << filename << "\n";
+                        std::cerr << "ERROR: could not open file: " << base_path + "final_confs/final_configuration_" + filename << "\n";
                         return;
                         }
                 
