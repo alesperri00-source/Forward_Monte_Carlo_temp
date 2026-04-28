@@ -105,9 +105,10 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
-        std::cout << "Batch " << batch + 1 << " / " << 100 << ", Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\r" << std::flush;
+        
         if (m % save_interval == 0) {
-            std::string filename = base_path + "intermediate_confs/"
+        std::cout << "Batch " << batch + 1 << " / " << 100 << ", Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
+        std::string filename = base_path + "intermediate_confs/"
                                  + "conf_batch" + std::to_string(batch)
                                  + "_thread" + std::to_string(thread_num)
                                  + "_step" + std::to_string(m) + ".txt";
@@ -208,7 +209,11 @@ int main() {
                         std::string filename = "configuration_batch" + std::to_string(batch) + "_thread" + std::to_string(thread_num) + ".txt";    
                         std::ofstream out(base_path + "final_confs/final_configuration_" +
                                         filename);
-
+                        if (!out.is_open()) {
+                        std::cerr << "ERROR: could not open file: " << filename << "\n";
+                        return;
+                        }
+                
                                 for (int i = 0; i < pol_length; i++) {
                                         for (int j = 0; j < 3; j++) {
                                                 out << polymer[thread_num][i][j] << '\n';
