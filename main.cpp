@@ -38,11 +38,11 @@ const int cap_length = 2;
 const int pol_length = 1620;
 
 // const long int mc_moves_start = 25000000;
-const long int mc_moves_start = 2500;
+const long int mc_moves_start = 30000000;
 long int mc_moves;
 //const int burn_in_time = 2000000;
-const int burn_in_time = 200;
-const int save_interval = 50;
+const int burn_in_time = 2000000;
+const int save_interval = 500000;
 
 
 
@@ -59,8 +59,24 @@ std::vector<double> linspace(float start, float end, size_t points)
   }
   return res;
 }
-const int num_points = 26;
-std::vector<double> betas = linspace(0.5, 3., num_points);
+
+
+std::vector<double> inverse_vector(const std::vector<double>& Ts)
+{
+    std::vector<double> betas(Ts.size());
+
+    for (size_t i = 0; i < Ts.size(); i++)
+    {
+        betas[i] = 1.0 / Ts[i];
+    }
+
+    return betas;
+}
+
+const int num_points = 10;
+std::vector<double> Ts = linspace(0.95, 1.4, num_points); // THESE ARE NOW TEMPERATURES
+std::vector<double> betas = inverse_vector(Ts);
+
 // now I am running 1 thread per beta SO number of threads = number of betas
 const int number_of_threads = num_points;
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
@@ -108,7 +124,7 @@ void run(int thread_num, int mc_moves, double beta, int batch) {
         move(polymer[thread_num], thread_num, m, beta);
 
         if (m % save_interval == 0) {
-        std::cout << "Batch " << batch + 1 << " / " << 100 << ", Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
+        std::cout << "Batch " << batch + 1 << "Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
         std::string filename = base_path + "intermediate_confs/"
                                  + "conf_batch" + std::to_string(batch)
                                  + "_thread" + std::to_string(thread_num)
