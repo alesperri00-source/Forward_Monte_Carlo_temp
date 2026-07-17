@@ -9,17 +9,19 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <unordered_map>
+#include <random>
 #include <boost/functional/hash.hpp>
 
 extern const int pol_length;
 extern long int mc_moves;
-extern const int burn_in_time;
+extern long int burn_in_time;
 extern const int cap;
 
 //extern static std::mt19937_64 gen;
 extern std::uniform_real_distribution<double> unif;
 extern std::uniform_int_distribution<int> unimove;
 extern std::uniform_int_distribution<int> unisite;
+extern std::vector<std::mt19937_64> generators;
 
 extern const int length_cylinder;
 extern const int cap_length;

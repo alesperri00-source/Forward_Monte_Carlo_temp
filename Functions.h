@@ -11,10 +11,10 @@
 #include <cmath>
 #include "global.h"
 
-static std::mt19937_64 gen(time(0));
+// static std::mt19937_64 gen(time(0));
 
-bool accept_move(double delta_E, double beta){
-    return ((delta_E <=0)||(unif(gen) < exp(-beta * delta_E))); // here I put the temperature
+bool accept_move(double delta_E, double beta, int thread_num){
+    return ((delta_E <=0)||(unif(generators[thread_num]) < exp(-beta * delta_E))); // here I put the temperature
 }
 
 // shape: chosen to match typical newborn C.crescentus cell

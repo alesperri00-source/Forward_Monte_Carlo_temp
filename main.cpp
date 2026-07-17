@@ -38,11 +38,10 @@ const int cap_length = 2;
 const int pol_length = 1620;
 
 // const long int mc_moves_start = 25000000;
-const long int mc_moves_start = 30000000;
+const long int mc_moves_start = 6000000000;
 long int mc_moves;
 //const int burn_in_time = 2000000;
-const int burn_in_time = 2000000;
-const int save_interval = 500000;
+long int burn_in_time = 200000000;
 
 
 
@@ -73,8 +72,8 @@ std::vector<double> inverse_vector(const std::vector<double>& Ts)
     return betas;
 }
 
-const int num_points = 10;
-std::vector<double> Ts = linspace(0.95, 1.4, num_points); // THESE ARE NOW TEMPERATURES
+const int num_points = 20;
+std::vector<double> Ts = linspace(0.9, 2.0, num_points); // THESE ARE NOW TEMPERATURES
 std::vector<double> betas = inverse_vector(Ts);
 
 // now I am running 1 thread per beta SO number of threads = number of betas
@@ -85,21 +84,21 @@ bool boundary_cond = 1; //enforces boundary conditions if 1
 bool orient = 1; //orients the cell such that the origin is always in the left half
 
 std::vector< std::vector<double>> Interaction_E(pol_length, std::vector<double>(pol_length,0));
-
 std::uniform_real_distribution<double> unif(0.0,1.0);
 std::uniform_int_distribution<int> unimove(0,2);
 std::uniform_int_distribution<int> unisite(0,pol_length-1);
 std::vector<std::vector<std::vector<double>>> total_contacts(number_of_threads, std::vector< std::vector<double>>(pol_length, std::vector<double>(pol_length, 0)));
 std::vector<std::vector<double>> final_contacts(pol_length, std::vector<double>(pol_length, 0));
+std::vector<std::mt19937_64> generators(number_of_threads);
 
-void move(std::vector<Vector3i> &polymer,int thread_num, int m, double beta){ //performs a single Monte Carlo step
+void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta){ //performs a single Monte Carlo step
     int action;
     int site;
 
-    action = unimove(gen);
-    site = unisite(gen);
+    action = unimove(generators[thread_num]);
+    site = unisite(generators[thread_num]);
     if (action==0){
-        kink_move(polymer,site, thread_num,m, beta);
+        kink_move(polymer,site, thread_num, m, beta);
     }
     else if (action==1){
         crankshaft_move(polymer,site, thread_num, m, beta);
@@ -118,28 +117,28 @@ void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the poly
 const std::string base_path = "/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
 
 
-void run(int thread_num, int mc_moves, double beta, int batch) {
+void run(int thread_num, long int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
 
-        if (m % save_interval == 0) {
-        std::cout << "Batch " << batch + 1 << "Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
-        std::string filename = base_path + "intermediate_confs/"
-                                 + "conf_batch" + std::to_string(batch)
-                                 + "_thread" + std::to_string(thread_num)
-                                 + "_step" + std::to_string(m) + ".txt";
-            std::ofstream out(filename);
-            if (!out.is_open()) {
-            std::cerr << "ERROR: could not open file: " << filename << "\n";
-            return;
-            }
-            for (int i = 0; i < pol_length; i++) {
-                for (int j = 0; j < 3; j++) {
-                    out << polymer[thread_num][i][j] << '\n';
-                }
-            }
-        }
+        // if (m % save_interval == 0) {
+        // std::cout << "Batch " << batch + 1 << "Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
+        // std::string filename = base_path + "intermediate_confs/"
+        //                          + "conf_batch" + std::to_string(batch)
+        //                          + "_thread" + std::to_string(thread_num)
+        //                          + "_step" + std::to_string(m) + ".txt";
+        //     std::ofstream out(filename);
+        //     if (!out.is_open()) {
+        //     std::cerr << "ERROR: could not open file: " << filename << "\n";
+        //     return;
+        //     }
+        //     for (int i = 0; i < pol_length; i++) {
+        //         for (int j = 0; j < 3; j++) {
+        //             out << polymer[thread_num][i][j] << '\n';
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -151,7 +150,13 @@ int main() {
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "Started!" << std::endl;
 
+    time_t time_now = time(0);
+
+    for (int i = 0; i < number_of_threads; i++) {
+        generators[i].seed(static_cast<unsigned long long>(time_now) + i);
+    }
     mc_moves = mc_moves_start;
+
     // Load interaction energies once
     std::ifstream couplings("/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo/energies_ccrescentus_wt_rep1.txt");
     for (int i = 0; i < pol_length; i++) {
@@ -170,48 +175,43 @@ int main() {
     }
     const int batch_size = number_of_threads;
     //const int total_batches = 1000;
-    const int total_batches = 10;
+    const int total_batches = 400;
     int sample_counter = 0;
     std::mutex counter_mutex;
     std::cout << "Running with " << number_of_threads << " threads." << std::endl;
 
+        // Initialize polymers
+    for (int l = 0; l < batch_size; l++) 
+    {
+        initialize(polymer[l], pol_length, l);
+    }
+
+    std::cout << "Initialized monomer positions (thread 0):\n";
+    for (int i = 0; i < 10; ++i) 
+    {
+        std::cout << polymer[0][i].transpose() << std::endl;
+    }
+    auto finish1 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed1 = finish1 - start;
+    std::cout << "Elapsed time: " << elapsed1.count() << " seconds\n";
+    std::cout << "Finished Initializing "  << std::endl;
+
+    // Burn in
+
+    std::vector<std::thread> threads(batch_size);
+    for (int l = 0; l < batch_size; l++) {
+        threads[l] = std::thread(run_burnin, l, burn_in_time, betas[l]);
+    }
+    auto finish2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed2 = finish2 - start;
+    std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
+    std::cout << "Finished Burn-in "<< std::endl;        
+    for (auto &&l : threads) l.join();
+
+    // Forward simulation
 
     for (int batch = 0; batch < total_batches; batch++) {
         std::cout << "Starting batch " << batch + 1 << " / " << total_batches << std::endl;
-
-        // Initialize polymers
-        for (int l = 0; l < batch_size; l++) {
-            // okay here I'm putting something Claude gave me., need to think
-            //polymer[l].clear();    
-            //contacts[l].clear();   // if I want to accumulate across batches don't clear
-            //locations[l].clear();                  
-            initialize(polymer[l], pol_length, l);
-        }
-        std::cout << "Initialized monomer positions (thread 0):\n";
-        for (int i = 0; i < 10; ++i) {
-            std::cout << polymer[0][i].transpose() << std::endl;
-        }
-
-        
-        auto finish1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed1 = finish1 - start;
-        std::cout << "Elapsed time: " << elapsed1.count() << " seconds\n";
-        std::cout << "Finished Initializing "  << std::endl;
-
-        // Burn-in
-        std::vector<std::thread> threads(batch_size);
-        for (int l = 0; l < batch_size; l++) {
-            threads[l] = std::thread(run_burnin, l, burn_in_time, betas[l]);
-        }
-        auto finish2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed2 = finish2 - start;
-        std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
-        std::cout << "Finished Burn-in "<< std::endl;
-        
-
-        for (auto &&l : threads) l.join();
-
-        // Forward simulation
         for (int l = 0; l < batch_size; l++) {
             threads[l] = std::thread(run, l, mc_moves, betas[l], batch);
         }

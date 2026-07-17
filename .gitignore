@@ -1,5 +1,17 @@
 build/
 
+# junk
+.DS_Store
+
+# Simulation/config folders
+confs_*_batches*/
 final_confs/*
+intermediate_confs/*
 !final_confs/.gitkeep
+!intermediate_confs/.gitkeep
+
+ideal_polymer/final_confs/
+final_confs_*_threads/
+final_confs_*_confs/
+.DS_Store
 
