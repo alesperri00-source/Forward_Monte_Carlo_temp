@@ -87,9 +87,44 @@ std::vector< std::vector<double>> Interaction_E(pol_length, std::vector<double>(
 std::uniform_real_distribution<double> unif(0.0,1.0);
 std::uniform_int_distribution<int> unimove(0,2);
 std::uniform_int_distribution<int> unisite(0,pol_length-1);
-std::vector<std::vector<std::vector<double>>> total_contacts(number_of_threads, std::vector< std::vector<double>>(pol_length, std::vector<double>(pol_length, 0)));
-std::vector<std::vector<double>> final_contacts(pol_length, std::vector<double>(pol_length, 0));
+//std::vector<std::vector<std::vector<double>>> total_contacts(number_of_threads, std::vector< std::vector<double>>(pol_length, std::vector<double>(pol_length, 0)));
+//std::vector<std::vector<double>> final_contacts(pol_length, std::vector<double>(pol_length, 0));
 std::vector<std::mt19937_64> generators(number_of_threads);
+
+struct EnergyStats {
+    double mean;
+    double variance;
+};
+
+EnergyStats compute_energy_stats(const std::vector<double>& energies)
+{
+    if (energies.empty()) {
+        return {0.0, 0.0};
+    }
+
+    double mean = 0.0;
+    double M2 = 0.0;
+    size_t n = 0;
+
+    for (double E : energies) {
+        ++n;
+
+        double delta = E - mean;
+        mean += delta / static_cast<double>(n);
+
+        double delta2 = E - mean;
+        M2 += delta * delta2;
+    }
+
+    EnergyStats result;
+    result.mean = mean;
+
+    // <(E - <E>)^2>
+    result.variance = M2 / static_cast<double>(n);
+
+    return result;
+}
+
 
 void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta){ //performs a single Monte Carlo step
     int action;
@@ -121,25 +156,36 @@ void run(int thread_num, long int mc_moves, double beta, int batch) {
     // save stuff every save_interval steps
     for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
         move(polymer[thread_num], thread_num, m, beta);
-
-        // if (m % save_interval == 0) {
-        // std::cout << "Batch " << batch + 1 << "Thread " << thread_num + 1 << " / " << number_of_threads << ", Step " << m << "\n";
-        // std::string filename = base_path + "intermediate_confs/"
-        //                          + "conf_batch" + std::to_string(batch)
-        //                          + "_thread" + std::to_string(thread_num)
-        //                          + "_step" + std::to_string(m) + ".txt";
-        //     std::ofstream out(filename);
-        //     if (!out.is_open()) {
-        //     std::cerr << "ERROR: could not open file: " << filename << "\n";
-        //     return;
-        //     }
-        //     for (int i = 0; i < pol_length; i++) {
-        //         for (int j = 0; j < 3; j++) {
-        //             out << polymer[thread_num][i][j] << '\n';
-        //         }
-        //     }
-        // }
     }
+}
+
+double instantaneous_energy(int thread_num)
+// computes the energy by doing a scalar prodcuct bwtween epsilon and contacts
+{
+    double E = 0.0;
+
+    // Each entry corresponds to one lattice position
+    for (const auto& entry : locations[thread_num]) {
+
+        const std::vector<int>& monomers = entry.second;
+
+        // Every pair occupying the same lattice position is a contact
+        for (size_t a = 0; a < monomers.size(); ++a) {
+            for (size_t b = a + 1; b < monomers.size(); ++b) {
+
+                int i = monomers[a];
+                int j = monomers[b];
+
+                // Follow the i < j convention
+                if (i > j)
+                    std::swap(i, j);
+
+                E += Interaction_E[i][j];
+            }
+        }
+    }
+
+    return E;
 }
 
 int main() {
@@ -174,13 +220,18 @@ int main() {
         }
     }
     const int batch_size = number_of_threads;
-    //const int total_batches = 1000;
     const int total_batches = 400;
-    int sample_counter = 0;
-    std::mutex counter_mutex;
+
+    std::vector<std::vector<double>> energy_samples(number_of_threads);
+    for (int l = 0; l < number_of_threads; ++l) {
+        energy_samples[l].reserve(total_batches);
+    }
+
+    //int sample_counter = 0;
+    //std::mutex counter_mutex;
     std::cout << "Running with " << number_of_threads << " threads." << std::endl;
 
-        // Initialize polymers
+    // Initialize polymers
     for (int l = 0; l < batch_size; l++) 
     {
         initialize(polymer[l], pol_length, l);
@@ -202,11 +253,12 @@ int main() {
     for (int l = 0; l < batch_size; l++) {
         threads[l] = std::thread(run_burnin, l, burn_in_time, betas[l]);
     }
+       
+    for (auto &&l : threads) l.join();
     auto finish2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed2 = finish2 - start;
     std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
-    std::cout << "Finished Burn-in "<< std::endl;        
-    for (auto &&l : threads) l.join();
+    std::cout << "Finished Burn-in "<< std::endl;     
 
     // Forward simulation
 
@@ -216,11 +268,18 @@ int main() {
             threads[l] = std::thread(run, l, mc_moves, betas[l], batch);
         }
 
+
+        for (auto &&l : threads) l.join();
+        // One instantaneous energy sample per temperature
+        for (int l = 0; l < batch_size; l++) {
+            double E = instantaneous_energy(l);
+            energy_samples[l].push_back(E);
+        }        
+
         auto finish3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed3 = finish3 - start;
         std::cout << "Elapsed time: " << elapsed3.count() << " seconds\n";
-        std::cout << "Finished forward "<< std::endl;
-        for (auto &&l : threads) l.join();
+        std::cout << "Finished forward "<< std::endl;        
 
         // Output configurations
         auto write_start = std::chrono::high_resolution_clock::now();
@@ -275,6 +334,30 @@ int main() {
          std::chrono::duration<double> write_elapsed = write_end - write_start;
          std::cout << "Finished writing files in " << write_elapsed.count() << " seconds\n";
     }
+
+    std::ofstream energy_out(base_path + "energy_statistics.txt");
+
+    energy_out << "# T\tbeta\tmean_E\tvariance_E\n";
+
+    for (int l = 0; l < number_of_threads; ++l) {
+
+        EnergyStats stats = compute_energy_stats(energy_samples[l]);
+
+        energy_out
+            << Ts[l] << '\t'
+            << betas[l] << '\t'
+            << stats.mean << '\t'
+            << stats.variance << '\n';
+
+        std::cout
+            << "T = " << Ts[l]
+            << "   <E> = " << stats.mean
+            << "   Var(E) = " << stats.variance
+            << std::endl;
+    }
+
+    energy_out.close();    
+
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
     std::cout << "Completed all batches." << std::endl;
