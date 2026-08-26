@@ -38,12 +38,10 @@ const int cap_length = 2;
 const int pol_length = 1620;
 
 // const long int mc_moves_start = 25000000;
-const long int mc_moves_start = 6000000000;
+const long int mc_moves_start = 60000000;
 long int mc_moves;
 //const int burn_in_time = 2000000;
 long int burn_in_time = 200000000;
-
-
 
 // create a vector of temperature
 
@@ -79,7 +77,8 @@ std::vector<double> betas = inverse_vector(Ts);
 // now I am running 1 thread per beta SO number of threads = number of betas
 const int number_of_threads = num_points;
 std::vector<std::vector<Vector3i>> polymer(number_of_threads);
-
+std::vector<long long> accepted_moves(number_of_threads, 0);
+std::vector<long long> attempted_moves(number_of_threads, 0);
 bool boundary_cond = 1; //enforces boundary conditions if 1
 bool orient = 1; //orients the cell such that the origin is always in the left half
 
@@ -90,6 +89,7 @@ std::uniform_int_distribution<int> unisite(0,pol_length-1);
 //std::vector<std::vector<std::vector<double>>> total_contacts(number_of_threads, std::vector< std::vector<double>>(pol_length, std::vector<double>(pol_length, 0)));
 //std::vector<std::vector<double>> final_contacts(pol_length, std::vector<double>(pol_length, 0));
 std::vector<std::mt19937_64> generators(number_of_threads);
+
 
 struct EnergyStats {
     double mean;
@@ -132,6 +132,7 @@ void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta
 
     action = unimove(generators[thread_num]);
     site = unisite(generators[thread_num]);
+
     if (action==0){
         kink_move(polymer,site, thread_num, m, beta);
     }
@@ -141,6 +142,7 @@ void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta
     else if (action==2){
        loop_move(polymer,site, thread_num, m, beta);
     }
+    attempted_moves[thread_num]++;
 }
 
 void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the polymer configurations
@@ -208,6 +210,7 @@ int main() {
     for (int i = 0; i < pol_length; i++) {
         for (int j = 0; j < pol_length; j++) {
             couplings >> Interaction_E[i][j];
+            Interaction_E[i][j] = 0; // to simulate random polymer
         }
     }
     couplings.close();
@@ -259,6 +262,9 @@ int main() {
     std::chrono::duration<double> elapsed2 = finish2 - start;
     std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
     std::cout << "Finished Burn-in "<< std::endl;     
+
+    std::fill(accepted_moves.begin(), accepted_moves.end(), 0);
+    std::fill(attempted_moves.begin(), attempted_moves.end(), 0);
 
     // Forward simulation
 
@@ -333,8 +339,14 @@ int main() {
          auto write_end = std::chrono::high_resolution_clock::now();
          std::chrono::duration<double> write_elapsed = write_end - write_start;
          std::cout << "Finished writing files in " << write_elapsed.count() << " seconds\n";
+
+         for (int l = 0; l < number_of_threads; ++l) {
+            double acceptance_rate = static_cast<double>(accepted_moves[l]) / static_cast<double>(attempted_moves[l]);
+            std::cout << "T = " << Ts[l] << " acceptance = " << acceptance_rate << std::endl;
+        }
     }
 
+    
     std::ofstream energy_out(base_path + "energy_statistics.txt");
 
     energy_out << "# T\tbeta\tmean_E\tvariance_E\n";

@@ -15,6 +15,7 @@ using namespace Eigen;
 std::uniform_int_distribution<int> unidir(0,2);
 std::uniform_int_distribution<int> unidir_loop(1,5);
 
+
 void kink_move(std::vector<Vector3i> &polymer, int site,int thread_num, long int m, double beta){
     if ((polymer[(site+2)%pol_length] != polymer[site]) && (polymer[(site+2)%pol_length] != 2*polymer[(site+1)%pol_length]-polymer[site])){
         Vector3i prop_move1;
@@ -35,6 +36,7 @@ void kink_move(std::vector<Vector3i> &polymer, int site,int thread_num, long int
             //     }
             // }
             //update hash map locations
+            accepted_moves[thread_num]++;
             std::vector<int> first_monomer = {polymer[((site+1)%pol_length)][0],polymer[((site+1)%pol_length)][1],polymer[((site+1)%pol_length)][2]};
             if (locations[thread_num][first_monomer].size() ==1){
                 locations[thread_num].erase(first_monomer);
@@ -69,6 +71,7 @@ void crankshaft_move(std::vector<Vector3i> &polymer, int site, int thread_num,lo
         }
         if (accept_move(delta_E_crankshaft(pol_length, polymer, site, prop_move1, prop_move2,thread_num), beta, thread_num)==1 && check_boundary_crankshaft(prop_move1, prop_move2)==1 &&
                 check_orient_crankshaft(site, polymer, prop_move1, prop_move2)==1){
+            accepted_moves[thread_num]++;
             //Throw away old contacts, at the same time update contact frequency map
             // for (auto elem : locations[thread_num].find({polymer[(site+1)%pol_length][0],polymer[(site+1)%pol_length][1],polymer[(site+1)%pol_length][2]})->second ){
             //     if (elem != (site+1)%pol_length){
@@ -138,6 +141,7 @@ void loop_move(std::vector<Vector3i> &polymer, int site, int thread_num, long in
         prop_move1 = polymer[site] + rotated_vector;
         if (accept_move(delta_E_other(polymer, site, pol_length, prop_move1,thread_num), beta, thread_num)==1 && check_boundary_rest(prop_move1)==1 &&
                 check_orient_rest(site, polymer, prop_move1)==1){
+            accepted_moves[thread_num]++;
             //Throw away old contacts, at the same time update contact frequency map
             // for (auto elem : locations[thread_num].find({polymer[(site+1)%pol_length][0],polymer[(site+1)%pol_length][1],polymer[(site+1)%pol_length][2]})->second ){
             //     if (elem != (site+1)%pol_length){

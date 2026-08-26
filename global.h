@@ -22,6 +22,8 @@ extern std::uniform_real_distribution<double> unif;
 extern std::uniform_int_distribution<int> unimove;
 extern std::uniform_int_distribution<int> unisite;
 extern std::vector<std::mt19937_64> generators;
+extern std::vector<long long> accepted_moves;
+extern std::vector<long long> attempted_moves;
 
 extern const int length_cylinder;
 extern const int cap_length;
