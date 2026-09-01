@@ -191,9 +191,10 @@ double instantaneous_energy(int thread_num)
 }
 
 int main() {
+    //system(("mkdir -p " + base_path + "intermediate_confs").c_str());
     system(("mkdir -p " + base_path + "final_confs").c_str());
+    system(("mkdir -p " + base_path + "burnin_confs").c_str());
     system(("mkdir -p " + base_path + "rejected_confs").c_str());
-    system(("mkdir -p " + base_path + "intermediate_confs").c_str());
 
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "Started!" << std::endl;
@@ -210,7 +211,7 @@ int main() {
     for (int i = 0; i < pol_length; i++) {
         for (int j = 0; j < pol_length; j++) {
             couplings >> Interaction_E[i][j];
-            Interaction_E[i][j] = 0; // to simulate random polymer
+            // Interaction_E[i][j] = 0; // to simulate random polymer
         }
     }
     couplings.close();
@@ -250,14 +251,54 @@ int main() {
     std::cout << "Elapsed time: " << elapsed1.count() << " seconds\n";
     std::cout << "Finished Initializing "  << std::endl;
 
-    // Burn in
 
     std::vector<std::thread> threads(batch_size);
-    for (int l = 0; l < batch_size; l++) {
-        threads[l] = std::thread(run_burnin, l, burn_in_time, betas[l]);
+
+    // Burn in
+    std::vector<std::thread> write_threads_bi;
+
+    const long int burnin_save_interval = 100000;
+    const int burnin_checkpoints = burn_in_time / burnin_save_interval;
+
+    for (int checkpoint = 0; checkpoint < burnin_checkpoints; checkpoint++) {
+
+        std::cout << "Burn-in checkpoint "<< checkpoint + 1 << " / " << burnin_checkpoints << std::endl;
+
+        // Advance every temperature by another burnin_save_interval moves
+        for (int l = 0; l < batch_size; ++l) {
+            threads[l] = std::thread(run_burnin,l,burnin_save_interval,betas[l]);
+        }
+
+        for (auto& t : threads) {t.join();}
+
+        // Now polymer is not being modified, so it is safe to write
+        std::vector<std::thread> write_threads_bi;
+
+        for (int th_n = 0; th_n < batch_size; th_n++) {
+
+            write_threads_bi.emplace_back([&, th_n, checkpoint]() {
+
+                std::string filename =
+                    "burnin_configuration_" + std::to_string(checkpoint) +"_thread" + std::to_string(th_n) +".txt";
+
+                std::ofstream out(base_path + "burnin_confs/" + filename);
+
+                if (!out.is_open()) {
+                    std::cerr << "ERROR: could not open " << base_path + "burnin_confs/" + filename << '\n';
+                    return;
+                }
+
+                for (int i = 0; i < pol_length; ++i) {
+                    for (int j = 0; j < 3; ++j) {
+                        out << polymer[th_n][i][j] << '\n';
+                    }
+                }
+            });
+        }
+
+        for (auto& t : write_threads_bi) {t.join();}
     }
-       
-    for (auto &&l : threads) l.join();
+    
     auto finish2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed2 = finish2 - start;
     std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
