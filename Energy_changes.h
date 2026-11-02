@@ -17,12 +17,12 @@ double delta_E_crankshaft(int pol_length, std::vector<Vector3i> &polymer, int si
     double energy_change = 0;
     if (locations[thread_num].find({prop_move1[0],prop_move1[1],prop_move1[2]})!=locations[thread_num].end()){
         for (auto elem : locations[thread_num].find({prop_move1[0],prop_move1[1],prop_move1[2]})->second ) {
-            energy_change += Interaction_E[elem][site+1];
+            energy_change += Interaction_E[elem][(site+1)%pol_length];
         }
     }
     if (locations[thread_num].find({prop_move2[0],prop_move2[1],prop_move2[2]})!=locations[thread_num].end()){
         for (auto elem : locations[thread_num].find({prop_move2[0],prop_move2[1],prop_move2[2]})->second ) {
-            energy_change += Interaction_E[elem][site+2];
+            energy_change += Interaction_E[elem][(site+2)%pol_length];
         }
     }
     for (auto elem : locations[thread_num].find({polymer[(site+1)%pol_length][0],polymer[(site+1)%pol_length][1],polymer[(site+1)%pol_length][2]})->second ) {
@@ -42,7 +42,7 @@ double delta_E_other(std::vector<Vector3i> &polymer, int site, int pol_length, V
     double energy_change = 0;
     if (locations[thread_num].find({prop_move1[0],prop_move1[1],prop_move1[2]})!=locations[thread_num].end()){
         for (auto elem : locations[thread_num].find({prop_move1[0],prop_move1[1],prop_move1[2]})->second ) {
-            energy_change += Interaction_E[elem][site+1];
+            energy_change += Interaction_E[elem][(site+1)%pol_length];
         }
     }
     for (auto elem : locations[thread_num].find({polymer[(site+1)%pol_length][0],polymer[(site+1)%pol_length][1],polymer[(site+1)%pol_length][2]})->second ) {

@@ -6,6 +6,8 @@
 #define Inverse_3D_new_Initialize_h
 
 #include <iostream>
+#include <fstream>
+#include <cstdlib>
 #include <Eigen/Dense>
 #include <vector>
 #include <unordered_map>
@@ -18,42 +20,51 @@ std::vector<std::unordered_map<std::pair<int, int>, int, pair_hash>> contacts(nu
 std::vector<std::unordered_map<std::vector<int>, std::vector<int>, vec_hash>> locations(number_of_threads);
 
 void initialize(std::vector<Vector3i> &polymer, int pol_length, int thread_num){
-    //    int coordinate;
-    //    std::ifstream configuration;
-    //    configuration.open ("/media/joris/raid_data/Chromosome_Maxent/Dataprocess_check_review/Raw/Inverse/configuration_init_" +std::to_string(thread_num)+".txt");
-    //    for(int i = 0; i < pol_length; i++){
-    //        Vector3i monomer;
-    //        for(int j = 0; j < 3; j++){
-    //            configuration >> coordinate;
-    //            monomer(j) = coordinate;
-    //        }
-    //        polymer.push_back(monomer);
-    //        if (locations[thread_num].find({monomer(0),monomer(1),monomer(2)})!=locations[thread_num].end()){
-    //            for (auto elem : locations[thread_num].find({monomer(0),monomer(1),monomer(2)})->second){
-    //                contacts[thread_num][{elem,i}]=0;
-    //            }
-    //            locations[thread_num].find({monomer(0),monomer(1),monomer(2)})->second.push_back(i);
-    //        }
-    //        else { locations[thread_num][{monomer(0),monomer(1),monomer(2)}] = {i}; }
-    //    }
-    // configuration.close();
+    if (init_from_file) { // configuration sampled from the MaxEnt model
+        std::string filename = init_conf_path + "configuration_init_" + std::to_string(thread_num) + ".txt";
+        std::ifstream configuration(filename);
+        int coordinate;
+        for(int i = 0; i < pol_length; i++){
+            Vector3i monomer;
+            for(int j = 0; j < 3; j++){
+                configuration >> coordinate;
+                monomer(j) = coordinate;
+            }
+            polymer.push_back(monomer);
+        }
+        if (!configuration) {
+            std::cerr << "ERROR: could not read " << pol_length << " monomers from " << filename << std::endl;
+            exit(1);
+        }
+        for (int i = 0; i < pol_length; i++) {
+            if ((polymer[(i+1)%pol_length] - polymer[i]).squaredNorm() != 1) {
+                std::cerr << "ERROR: monomers " << i << " and " << (i+1)%pol_length << " are not neighbours in " << filename << std::endl;
+                exit(1);
+            }
+        }
+    }
+    else { // fixed compact conformation
+        int x_i, y_i, z_i;
+        Vector3i monomer;
+        x_i=2; y_i=2; z_i=2;
+        for (int i=0; i<pol_length; i++){
+                if (i%4==0){x_i++;}
+                else if (i%4==1){y_i++;}
+                else if (i%4==2){x_i--;}
+                else if (i%4==3){y_i--;}
+            monomer << x_i,y_i,z_i; polymer.push_back(monomer);
+        }
+    }
 
-    int x_i, y_i, z_i;
-    Vector3i monomer;
-    x_i=2; y_i=2; z_i=2;
-    for (int i=0; i<pol_length; i++){
-            if (i%4==0){x_i++;}
-            else if (i%4==1){y_i++;}
-            else if (i%4==2){x_i--;}
-            else if (i%4==3){y_i--;}
-        monomer << x_i,y_i,z_i; polymer.push_back(monomer);
-        if (locations[thread_num].find({x_i,y_i,z_i})!=locations[thread_num].end()){
-            for (auto elem : locations[thread_num].find({x_i,y_i,z_i})->second){
+    for (int i = 0; i < pol_length; i++){ // register occupied lattice sites and initial contacts
+        std::vector<int> site = {polymer[i](0), polymer[i](1), polymer[i](2)};
+        if (locations[thread_num].find(site)!=locations[thread_num].end()){
+            for (auto elem : locations[thread_num].find(site)->second){
                 contacts[thread_num][{elem,i}]=0;
             }
-            locations[thread_num].find({x_i,y_i,z_i})->second.push_back(i);
-            }
-        else { locations[thread_num][{x_i,y_i,z_i}] = {i}; }
+            locations[thread_num].find(site)->second.push_back(i);
+        }
+        else { locations[thread_num][site] = {i}; }
     }
 }
 #endif //Inverse_3D_new_Initialize.h

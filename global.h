@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <unordered_map>
 #include <random>
+#include <string>
 #include <boost/functional/hash.hpp>
 
 extern const int pol_length;
@@ -39,6 +40,8 @@ extern std::vector< std::vector<double>> Interaction_E;
 
 extern bool boundary_cond;
 extern bool orient;
+extern bool init_from_file;
+extern const std::string init_conf_path;
 extern const double diameter;
 extern const double radius;
 extern const int length_cell;

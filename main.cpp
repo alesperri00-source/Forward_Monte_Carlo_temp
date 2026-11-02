@@ -81,6 +81,19 @@ std::vector<long long> accepted_moves(number_of_threads, 0);
 std::vector<long long> attempted_moves(number_of_threads, 0);
 bool boundary_cond = 1; //enforces boundary conditions if 1
 bool orient = 1; //orients the cell such that the origin is always in the left half
+bool init_from_file = 0; //starts from the MaxEnt configurations init_conf_path/configuration_init_<thread>.txt if 1, from a fixed compact conformation if 0
+
+// Replica exchange (parallel tempering): every exchange_interval moves, neighbouring temperatures try to swap their
+// configurations, so that a configuration stuck at low T can travel up to high T, decorrelate there, and come back down.
+bool replica_exchange = 1; //swaps configurations between neighbouring temperatures if 1
+const long int exchange_interval = 100000; // MC moves per temperature between two rounds of swap attempts
+std::mt19937_64 swap_generator;
+std::vector<int> replica_at(number_of_threads); // replica_at[l] = label of the configuration currently at temperature Ts[l]
+std::vector<int> trip_state(number_of_threads, 0); // per configuration: 0 never at lowest T, 1 left lowest T, 2 reached highest T since
+std::vector<long long> swap_attempts(number_of_threads - 1, 0); // entry l refers to the pair (Ts[l], Ts[l+1])
+std::vector<long long> swap_accepts(number_of_threads - 1, 0);
+long long round_trips = 0; // lowest T -> highest T -> lowest T, summed over all configurations
+long long exchange_round = 0;
 
 std::vector< std::vector<double>> Interaction_E(pol_length, std::vector<double>(pol_length,0));
 std::uniform_real_distribution<double> unif(0.0,1.0);
@@ -145,18 +158,12 @@ void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta
     attempted_moves[thread_num]++;
 }
 
-void run_burnin(int thread_num, int mc_moves, double beta) { //burns in the polymer configurations
-    for (int m = 1; m < mc_moves; m++) {
-        move(polymer[thread_num], thread_num, m, beta);
-    }
-}
-
 const std::string base_path = "/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
+const std::string init_conf_path = base_path + "init_confs/";
 
 
-void run(int thread_num, long int mc_moves, double beta, int batch) {
-    // save stuff every save_interval steps
-    for (int m = 1; m < mc_moves; m++) {    //performs a forward polymer simulation
+void run(int thread_num, long int n_moves, double beta) { //performs n_moves Monte Carlo steps at fixed temperature
+    for (long int m = 0; m < n_moves; m++) {
         move(polymer[thread_num], thread_num, m, beta);
     }
 }
@@ -190,6 +197,57 @@ double instantaneous_energy(int thread_num)
     return E;
 }
 
+void attempt_swaps() { //one round of replica exchange between neighbouring temperatures
+    std::vector<double> E(number_of_threads);
+    for (int l = 0; l < number_of_threads; ++l) {
+        E[l] = instantaneous_energy(l);
+    }
+
+    // deterministic even/odd scheme: even rounds try the pairs (0,1),(2,3),..., odd rounds (1,2),(3,4),...
+    for (int l = exchange_round % 2; l + 1 < number_of_threads; l += 2) {
+        swap_attempts[l]++;
+        double log_acc = (betas[l] - betas[l + 1]) * (E[l] - E[l + 1]);
+        if (log_acc >= 0 || unif(swap_generator) < exp(log_acc)) {
+            // O(1) swaps of the containers: the configurations change temperature, threads and generators do not
+            std::swap(polymer[l], polymer[l + 1]);
+            std::swap(locations[l], locations[l + 1]);
+            std::swap(contacts[l], contacts[l + 1]);
+            std::swap(replica_at[l], replica_at[l + 1]);
+            swap_accepts[l]++;
+        }
+    }
+    exchange_round++;
+
+    int coldest = replica_at[0];
+    int hottest = replica_at[number_of_threads - 1];
+    if (trip_state[coldest] == 2) round_trips++;
+    trip_state[coldest] = 1;
+    if (trip_state[hottest] == 1) trip_state[hottest] = 2;
+}
+
+void advance_all(long int n_moves) { //advances every temperature by n_moves MC moves, one thread per temperature
+    long int done = 0;
+    while (done < n_moves) {
+        long int chunk = replica_exchange ? std::min(exchange_interval, n_moves - done) : n_moves;
+        std::vector<std::thread> threads;
+        for (int l = 0; l < number_of_threads; ++l) {
+            threads.emplace_back(run, l, chunk, betas[l]);
+        }
+        for (auto& t : threads) {t.join();}
+        done += chunk;
+        if (replica_exchange) attempt_swaps();
+    }
+}
+
+void print_swap_stats(std::ostream& out) {
+    out << "# T_low\tT_high\tswap_attempts\tswap_acceptance\n";
+    for (int l = 0; l + 1 < number_of_threads; ++l) {
+        double rate = swap_attempts[l] > 0 ? static_cast<double>(swap_accepts[l]) / static_cast<double>(swap_attempts[l]) : 0.0;
+        out << Ts[l] << '\t' << Ts[l + 1] << '\t' << swap_attempts[l] << '\t' << rate << '\n';
+    }
+    out << "# round trips (lowest T -> highest T -> lowest T): " << round_trips << '\n';
+}
+
 int main() {
     //system(("mkdir -p " + base_path + "intermediate_confs").c_str());
     system(("mkdir -p " + base_path + "final_confs").c_str());
@@ -203,7 +261,9 @@ int main() {
 
     for (int i = 0; i < number_of_threads; i++) {
         generators[i].seed(static_cast<unsigned long long>(time_now) + i);
+        replica_at[i] = i;
     }
+    swap_generator.seed(static_cast<unsigned long long>(time_now) + number_of_threads);
     mc_moves = mc_moves_start;
 
     // Load interaction energies once
@@ -252,8 +312,6 @@ int main() {
     std::cout << "Finished Initializing "  << std::endl;
 
 
-    std::vector<std::thread> threads(batch_size);
-
     // Burn in
     std::vector<std::thread> write_threads_bi;
 
@@ -265,11 +323,7 @@ int main() {
         std::cout << "Burn-in checkpoint "<< checkpoint + 1 << " / " << burnin_checkpoints << std::endl;
 
         // Advance every temperature by another burnin_save_interval moves
-        for (int l = 0; l < batch_size; ++l) {
-            threads[l] = std::thread(run_burnin,l,burnin_save_interval,betas[l]);
-        }
-
-        for (auto& t : threads) {t.join();}
+        advance_all(burnin_save_interval);
 
         // Now polymer is not being modified, so it is safe to write
         std::vector<std::thread> write_threads_bi;
@@ -304,19 +358,24 @@ int main() {
     std::cout << "Elapsed time: " << elapsed2.count() << " seconds\n";
     std::cout << "Finished Burn-in "<< std::endl;     
 
+    if (replica_exchange) print_swap_stats(std::cout);
+
     std::fill(accepted_moves.begin(), accepted_moves.end(), 0);
     std::fill(attempted_moves.begin(), attempted_moves.end(), 0);
+    std::fill(swap_attempts.begin(), swap_attempts.end(), 0);
+    std::fill(swap_accepts.begin(), swap_accepts.end(), 0);
+    round_trips = 0;
+
+    // which configuration label each saved file (thread<l> = temperature Ts[l]) comes from
+    std::ofstream replica_out(base_path + "replica_ids.txt");
+    replica_out << "# batch\tlabel of the configuration at each temperature, from lowest to highest T\n";
 
     // Forward simulation
 
     for (int batch = 0; batch < total_batches; batch++) {
         std::cout << "Starting batch " << batch + 1 << " / " << total_batches << std::endl;
-        for (int l = 0; l < batch_size; l++) {
-            threads[l] = std::thread(run, l, mc_moves, betas[l], batch);
-        }
+        advance_all(mc_moves);
 
-
-        for (auto &&l : threads) l.join();
         // One instantaneous energy sample per temperature
         for (int l = 0; l < batch_size; l++) {
             double E = instantaneous_energy(l);
@@ -385,9 +444,20 @@ int main() {
             double acceptance_rate = static_cast<double>(accepted_moves[l]) / static_cast<double>(attempted_moves[l]);
             std::cout << "T = " << Ts[l] << " acceptance = " << acceptance_rate << std::endl;
         }
+
+        if (replica_exchange) {
+            print_swap_stats(std::cout);
+            replica_out << batch;
+            for (int l = 0; l < number_of_threads; ++l) replica_out << '\t' << replica_at[l];
+            replica_out << std::endl;
+        }
     }
 
-    
+    if (replica_exchange) {
+        std::ofstream swap_out(base_path + "swap_statistics.txt");
+        print_swap_stats(swap_out);
+    }
+
     std::ofstream energy_out(base_path + "energy_statistics.txt");
 
     energy_out << "# T\tbeta\tmean_E\tvariance_E\n";
