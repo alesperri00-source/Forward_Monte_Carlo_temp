@@ -81,7 +81,7 @@ std::vector<long long> accepted_moves(number_of_threads, 0);
 std::vector<long long> attempted_moves(number_of_threads, 0);
 bool boundary_cond = 1; //enforces boundary conditions if 1
 bool orient = 1; //orients the cell such that the origin is always in the left half
-bool init_from_file = 0; //starts from the MaxEnt configurations init_conf_path/configuration_init_<thread>.txt if 1, from a fixed compact conformation if 0
+bool init_from_file = 1; //starts from the MaxEnt configurations init_conf_path/configuration_init_<thread>.txt if 1, from a fixed compact conformation if 0
 
 // Replica exchange (parallel tempering): every exchange_interval moves, neighbouring temperatures try to swap their
 // configurations, so that a configuration stuck at low T can travel up to high T, decorrelate there, and come back down.
@@ -159,7 +159,9 @@ void move(std::vector<Vector3i> &polymer,int thread_num, long int m, double beta
 }
 
 const std::string base_path = "/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Forward_Monte_Carlo_with_T/";
-const std::string init_conf_path = base_path + "init_confs/";
+const std::string init_path = "/home/alessandro/alessandro/PhD_Alessandro/first_project/MaxEnt-Chromosome-Caulobacter-0.1/Inverse_Monte_Carlo/";
+
+const std::string init_conf_path = init_path + "sim_data/final_confs/";
 
 
 void run(int thread_num, long int n_moves, double beta) { //performs n_moves Monte Carlo steps at fixed temperature
