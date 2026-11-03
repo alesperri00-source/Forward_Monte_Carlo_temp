@@ -50,7 +50,7 @@ void kink_move(std::vector<Vector3i> &polymer, int site,int thread_num, long int
             else {
                 locations[thread_num][{prop_move1[0],prop_move1[1],prop_move1[2]}] = {((site+1)%pol_length)};
             }
-
+            
             //update polymer
             polymer[(site+1)%pol_length] = prop_move1;
         }
